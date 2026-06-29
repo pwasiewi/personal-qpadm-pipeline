@@ -23,13 +23,17 @@
 #   - Historical admixture candidates (Jew_Ashkenazi, Germany_Medieval_Jewish,
 #     Hungary_Conqueror_Commoner=Magyar, Romanian, Hungarian) -- hidden minority
 #
-# SURPRISE DETECTOR: a model is "SIGNIFICANT-2src" only when
-#   p > 0.05  AND  second-source weight in (0.05, 0.95)  AND  |z_second| > 2.
-# Then the second source is a real additional component (not noise). If such
-# a source appears for PW but not JW (or vice versa) -- that IS the difference.
+# SURPRISE DETECTOR (hardened 2026-06-29): a model is "SIGNIFICANT-2src" only when
+#   p > 0.05  AND  BOTH weights in (0.1, 0.9)  AND  p > p_base (improves on base
+#   alone)  AND  |z_second| > 3  AND  BH-adjusted q_second < 0.05 across all models.
+# Bases are additionally restricted to n >= 15 (MIN_BASE_N): a weak anchor floats
+# the whole model onto the second source, producing spurious hits (the AM run gave
+# 25, ALL on Ukraine_IA_Lusatian n=3, zero on the 9 well-powered bases). Then the
+# second source is a real additional component (not noise). If such a source
+# appears for PW but not JW (or vice versa) -- that IS the difference.
 #
 # Verdicts:
-#   SIGNIFICANT-2src      -- p>0.05, w_second in (0.05,0.95), |z|>2: real component
+#   SIGNIFICANT-2src      -- p>0.05, both w in (0.1,0.9), p>p_base, |z|>3, q<0.05: real component
 #   OK-base-sufficient    -- p>0.05, w_second<=0.05: second source absent, base alone works
 #   OK-second-dominant    -- p>0.05, w_second>=0.95: base weight collapses, second dominates
 #                            (not "base sufficient" -- base is actually superfluous here)
@@ -42,11 +46,11 @@
 # was fixed=1 (1 source), so se=0. Here weights are properly estimated => z is meaningful.
 #
 # Usage (from a writable directory, e.g. ~/Claude):
-#   Rscript aadr/08_two_source.R \
+#   Rscript aadr_eu/08_two_source.R \
 #     ./FF_PW/merged_pw_aadr_final_ready \
 #     /usr/local/share/aadr/v66.p1_HO.aadr.patch.PUB \
 #     PW
-#   Rscript aadr/08_two_source.R ./JW_MH/merged_pw_aadr_final_ready <aadr> JW
+#   Rscript aadr_eu/08_two_source.R ./JW_MH/merged_pw_aadr_final_ready <aadr> JW
 #
 # Output (in outdir):
 #   two_source_results_<target>.tsv
@@ -77,12 +81,35 @@ cat(sprintf("  Merged prefix : %s\n", merged_prefix))
 cat(sprintf("  AADR prefix   : %s\n", aadr_prefix))
 cat(sprintf("  Target        : %s\n\n", target_id))
 
-right_pops <- c("Mbuti", "Yoruba", "Han")
+# [aadr_eu] Enriched right set (+ Papuan, Karitiana) -- distal continental
+# outgroups give qpAdm power to reject East-Eurasian-shifted sources. See step 07
+# header for rationale; AM confirmed European-only by admixture-f3 check.
+right_pops <- c("Mbuti", "Yoruba", "Han", "Papuan", "Karitiana")
 
 # ---- Base sources (anchors) -- rotated as first LEFT ----
+# CHOSEN A PRIORI by geographic spread + sample size, NOT by step-07 1-source p.
+# Rationale: with only 3 outgroups at ~40K SNP, 1-source qpAdm has almost no
+# power to reject, so its p-ranking is noise (Lithuania_LBA "beats" England_Saxon
+# etc.). Picking bases off that ranking is meaningless. Instead we rotate a fixed
+# panel that brackets the plausible ancestry space of a West/Central/North/East
+# European (or admixed US) target, so a real 2-source signal can show up against
+# *some* sensible base. [aadr_eu]
 base_anchors <- c(
-  "Ukraine_IA_Lusatian",   # best 1-source from step 7 (p~0.98)
-  "Poland_EarlySlav"       # canonical proximal Slavic anchor
+  # West / British
+  "England_Saxon",                  # n=84, NW Germanic / Anglo-Saxon
+  "England_IA",                     # n=66, pre-Germanic (Celtic) Britain
+  # Continental / Gaulish
+  "France_GrandEst_IA2",            # n=21, eastern Gaul
+  "France_Bucy_le_Long_IA_LaTene",  # n=41, NE Gaul La Tene
+  "Germany_AltInden_EarlyMedieval", # n=16, continental Germanic
+  # South / Mediterranean
+  "Spanish",                        # n=228, Iberian (large, stable)
+  "Italian_North",                  # n=61, N Italian
+  # Scandinavian
+  "Sweden_IA",                      # n=8, Scandinavian Iron Age
+  # East / Slavic (retained from base aadr pipeline)
+  "Ukraine_IA_Lusatian",            # n=3, best Slavic anchor on Polish targets
+  "Poland_EarlySlav"                # n=25, proximal Slavic
 )
 
 # ---- Diverse second sources (n>=3, deliberately NOT tested in step 7) ----
@@ -129,7 +156,32 @@ diverse_seconds <- c(
   "Germany_Medieval_Jewish-lowEastEU", # n=19, medieval Erfurt Ashkenazi
   "Hungary_Conqueror_Commoner",    # n=25, Magyar conquerors (hidden steppe component)
   "Romanian",                      # n=10, modern Romanians (Balkan/Vlach)
-  "Hungarian"                      # n=22, modern Hungarians (Pannonian)
+  "Hungarian",                     # n=22, modern Hungarians (Pannonian)
+  # ============================================================================
+  # aadr_eu EXPANSION -- West/Central European second sources (dominant US
+  # ancestry as a hidden minority component on a Slavic/Lusatian base).
+  # First batch; n>=3 gate (check_pops) silently skips absent labels.
+  # England_Saxon and Italian_North already present above -- not duplicated.
+  # ============================================================================
+  # British Isles -- Iron Age + early medieval
+  "England_IA",                    # n=66, pre-Saxon Iron Age Britain
+  "England_EarlyMedieval_Saxon",   # n=83, early medieval Saxon England
+  "Ireland_EarlyMedieval",         # n=38, early medieval Gaelic Ireland
+  # Continental Germanic / Saxon
+  "Netherlands_Medieval_Saxon",    # n=24, continental Saxon homeland
+  "Germany_AltInden_EarlyMedieval",# n=16, early medieval Rhineland Germanic
+  "Hungary_Lombards",              # n=23, Germanic Lombards (Pannonia)
+  # Gaulish / French Iron Age
+  "France_Bucy_le_Long_IA_LaTene", # n=41, NE Gaul La Tene IA
+  "France_GrandEst_IA2",           # n=21, eastern France later IA
+  # Italic / Roman + Iberian
+  "Italy_Lazio_ImperialRoman_Roman", # n=25, Imperial Roman Lazio
+  "Spain_IA",                      # n=16, Iberian Iron Age
+  # Modern West/North European reference anchors
+  "English",                       # n=22, modern English
+  "French",                        # n=91, modern French
+  "Spanish",                       # n=228, modern Spanish
+  "Orcadian"                       # n=30, Orkney (NW British isolate)
 )
 
 # ---- Verify populations in AADR + sample sizes (n>=3) ----
@@ -139,12 +191,12 @@ ind_all <- read.table(paste0(aadr_prefix, ".ind"),
                       stringsAsFactors = FALSE)
 n_by_pop <- table(ind_all$Pop)
 
-check_pops <- function(pops, kind) {
+check_pops <- function(pops, kind, minn = 3L) {
   ok <- c()
   for (p in pops) {
     n <- if (p %in% names(n_by_pop)) n_by_pop[[p]] else 0L
-    if (n < 3L) {
-      cat(sprintf("  SKIP %-32s  n=%d (< 3)\n", p, n))
+    if (n < minn) {
+      cat(sprintf("  SKIP %-32s  n=%d (< %d)  [%s]\n", p, n, minn, kind))
     } else {
       cat(sprintf("  OK   %-32s  n=%d  [%s]\n", p, n, kind))
       ok <- c(ok, p)
@@ -152,8 +204,22 @@ check_pops <- function(pops, kind) {
   }
   ok
 }
-base_ok   <- check_pops(base_anchors,    "base")
-second_ok <- check_pops(diverse_seconds, "second")
+# [aadr_eu hardening 2026-06-29] A BASE must be well-powered (n >= MIN_BASE_N).
+# A weak anchor barely constrains the model, so whatever second source you add
+# grabs dominant weight with z just past the bar -> spurious SIGNIFICANT-2src
+# (the AM run produced 25, ALL on Ukraine_IA_Lusatian n=3, zero on the 9 powered
+# bases). Low-n bases are DEMOTED to the second-source pool, not dropped: they can
+# still legitimately appear as a minority component against a strong anchor.
+MIN_BASE_N <- 15L
+base_all_ok <- check_pops(base_anchors, "base", minn = 3L)   # n>=3 sanity floor
+base_ok     <- base_all_ok[vapply(base_all_ok,
+                 function(p) n_by_pop[[p]] >= MIN_BASE_N, logical(1))]
+demoted     <- setdiff(base_all_ok, base_ok)
+if (length(demoted))
+  cat(sprintf("  NOTE %d base(s) demoted to second-source (n < %d): %s\n",
+              length(demoted), MIN_BASE_N, paste(demoted, collapse = ", ")))
+second_ok   <- check_pops(diverse_seconds, "second")
+second_ok   <- unique(c(second_ok, demoted))
 cat("\n")
 
 if (length(base_ok) == 0L)   stop("No available base sources (n>=3).")
@@ -166,8 +232,9 @@ fam_existing  <- read.table(paste0(merged_prefix, ".fam"),
                             col.names = c("FID","IID","PID","MID","SEX","PHEN"),
                             stringsAsFactors = FALSE)
 existing_fids <- unique(fam_existing$FID)
-# Han/Mbuti/Yoruba usually already in base file; do not re-read outgroups
-extra_needed  <- setdiff(all_left_pops, existing_fids)
+# Mbuti/Yoruba/Han are already in the base file, but NEW enriched outgroups
+# (Papuan/Karitiana) are not -> include right_pops so they get pulled from AADR.
+extra_needed  <- setdiff(unique(c(all_left_pops, right_pops)), existing_fids)
 
 cat(sprintf("  Already in file : %s\n",
             paste(sort(intersect(c(all_left_pops, right_pops), existing_fids)),
@@ -283,11 +350,9 @@ f2_dir <- file.path(outdir, paste0(basename(ext_prefix), "_", target_id, "_f2cac
 dir.create(f2_dir, recursive = TRUE, showWarnings = FALSE)
 
 # ---- MEMORY FIX: pre-filter SNPs to the target's genotyped set ------------
-# The 2src union file is ~1.1M SNPs but the target (consumer array) genotyped
-# only ~50K; extract_f2 otherwise loads the full matrix (24-45 GB) before
-# dropping to the usable ~41-50K -> OOM (`Unicestwiony` = SIGKILL). Restrict the
-# fileset to the target's genotyped SNPs FIRST. Verdict logic below is unchanged;
-# this only changes WHICH bed extract_f2 reads and how much RAM it may use.
+# Same rationale as step 07: the 2src union file is ~1.1M SNPs but the target
+# (consumer array) genotyped only ~50K; extract_f2 otherwise loads the full
+# matrix (24-45 GB) before dropping to the usable ~35K -> OOM. Restrict first.
 dense_prefix <- paste0(ext_prefix, "_dense")
 if (!file.exists(paste0(dense_prefix, ".bed"))) {
   cat("--- Pre-filtering SNPs to target's genotyped set (memory optimisation) ---\n")
@@ -310,8 +375,7 @@ cat("--- Computing f2 (single pass for all populations) ---\n")
 cat(sprintf("  Populations (%d): %s\n", length(all_pops_f2),
             paste(all_pops_f2, collapse = ", ")))
 # maxmem below extract_f2's no-split estimate (~2500 MB) to FORCE block-splitting
-# (~1000 MB => "3 chunks of 20 pops, 6 chunk pairs") so the f2 pass never grabs
-# all of RAM. The no-split pass is what OOM-killed earlier runs. Lower to 500 if
+# -- the no-split f2 pass is what OOM-killed step 07's first run. Lower to 500 if
 # a run is still killed.
 extract_f2(dense_prefix, pops = all_pops_f2, outdir = f2_dir,
            overwrite = TRUE, format = "plink", maxmem = 1000)
@@ -376,13 +440,26 @@ for (b in base_ok) {
     degenerate <- (!is.na(w_s) && (w_s > 1.5 || w_s < -0.5)) ||
                   (!is.na(w_b) && (w_b > 1.5 || w_b < -0.5))
 
-    # Surprise detector: model passes + second source significant and physical
-    sig_second <- !is.na(pv) && pv > 0.05 && !degenerate &&
-                  !is.na(w_s) && w_s > 0.05 && w_s < 0.95 &&
-                  !is.na(z_s) && abs(z_s) > 2
+    # Surprise detector (hardened 2026-06-29). A 2-source model is a real
+    # additional-component candidate only when ALL hold:
+    #   - p > 0.05, not degenerate (already above)
+    #   - BOTH weights in (0.1, 0.9): neither source vestigial. A near-zero base
+    #     means the "mixture" is effectively the second source alone with a tiny
+    #     correction -- the OK-second-dominant pathology, not a 2-way model.
+    #   - p > p_base: the second source must IMPROVE on the base-alone fit;
+    #     otherwise adding it made things worse and the flag is noise.
+    #   - |z_second| > 3 (was 2): at ~480 models tested, |z|>2 alone yields ~24
+    #     false positives by chance. The BH q<0.05 correction (post-loop) is the
+    #     companion control; this is only the per-model prefilter.
+    pb <- base_p[[b]]
+    sig_pref <- !is.na(pv) && pv > 0.05 && !degenerate &&
+                !is.na(w_s) && w_s > 0.1 && w_s < 0.9 &&
+                !is.na(w_b) && w_b > 0.1 && w_b < 0.9 &&
+                !is.na(pb) && pv > pb &&
+                !is.na(z_s) && abs(z_s) > 3
     verdict <- if (is.na(pv)) "ERROR"
                else if (degenerate) "UNIDENTIFIABLE"
-               else if (sig_second) "SIGNIFICANT-2src"
+               else if (sig_pref) "SIGNIFICANT-2src"
                else if (pv > 0.05 && !is.na(w_s) && w_s <= 0.05)
                  "OK-base-sufficient"
                else if (pv > 0.05 && !is.na(w_s) && w_s >= 0.95)
@@ -408,6 +485,26 @@ for (b in base_ok) {
 # ---- Summary table ----
 res_df <- do.call(rbind, results)
 rownames(res_df) <- NULL
+
+# ---- Multiple-testing correction across the whole scan [aadr_eu 2026-06-29] ----
+# ~480 models tested; control the false-discovery rate on the weight z-test.
+# Two-sided p from z_second, Benjamini-Hochberg adjusted over all models with a
+# finite z. A SIGNIFICANT-2src candidate whose q_second >= 0.05 is demoted to
+# OK-2src-nonsignificant: it cleared the per-model prefilter but does not survive
+# correction for how many models were tried.
+p_from_z <- 2 * pnorm(-abs(res_df$z_second))         # NA where z is NA
+q_second <- rep(NA_real_, nrow(res_df))
+finite_z <- is.finite(p_from_z)
+q_second[finite_z] <- p.adjust(p_from_z[finite_z], method = "BH")
+res_df$q_second <- round(q_second, 4)
+demote <- res_df$verdict == "SIGNIFICANT-2src" &
+          (!is.finite(q_second) | q_second >= 0.05)
+if (any(demote)) {
+  cat(sprintf("  BH correction: demoting %d candidate(s) with q_second >= 0.05.\n\n",
+              sum(demote)))
+  res_df$verdict[demote] <- "OK-2src-nonsignificant"
+}
+
 # Sort in 3 tiers: SIGNIFICANT-2src (0) -> meaningful (1) -> UNIDENTIFIABLE (2),
 # within tier by p descending. UNIDENTIFIABLE goes to bottom despite inflated p.
 tier <- ifelse(res_df$verdict == "SIGNIFICANT-2src", 0L,
@@ -418,7 +515,7 @@ res_df <- res_df[ord, ]
 cat("================================================================================\n")
 cat("  SUMMARY TABLE (SIGNIFICANT-2src on top, then by p descending)\n")
 cat("================================================================================\n\n")
-print(res_df[, c("base","second","p","p_base","w_second","z_second","verdict")],
+print(res_df[, c("base","second","p","p_base","w_second","z_second","q_second","verdict")],
       row.names = FALSE)
 cat("\n")
 

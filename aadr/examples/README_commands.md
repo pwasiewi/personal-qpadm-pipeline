@@ -75,3 +75,14 @@ Rscript aadr/08_two_source.R     ./JW_MH/merged_pw_aadr_final_ready /usr/local/s
 #   wrap columns.
 # Full results: PW_FF_slavic_aadr.md §5A/5B/§10, JW_MH_slavic_aadr.md §4A/4B
 # ══════════════════════════════════════════════════════════════════════════════
+
+
+SAMPLE_ID=AM ./aadr_eu/01_prepare_files.sh /usr/local/share/aadr/familytreedna_am_autosomal.csv  AM_FF
+Rscript aadr_eu/02_build_aadr_subset.R /usr/local/share/aadr/v66.p1_HO.aadr.patch.PUB ./AM_FF
+./aadr_eu/03_merge_and_test.sh ./AM_FF AM
+Rscript aadr_eu/04_run_qpadm_test.R ./AM_FF/merged_pw_aadr_final_ready AM
+Rscript aadr_eu/05_robustness_outgroups.R ./AM_FF/merged_pw_aadr_final_ready /usr/local/share/aadr/v66.p1_HO.aadr.patch.PUB AM
+Rscript aadr_eu/06_ancestry_models.R ./AM_FF/merged_pw_aadr_extended /usr/local/share/aadr/v66.p1_HO.aadr.patch.PUB AM
+Rscript aadr_eu/07_extended_models.R ./AM_FF/merged_pw_aadr_final_ready /usr/local/share/aadr/v66.p1_HO.aadr.patch.PUB AM
+Rscript aadr_eu/08_two_source.R     ./AM_FF/merged_pw_aadr_final_ready /usr/local/share/aadr/v66.p1_HO.aadr.patch.PUB AM
+

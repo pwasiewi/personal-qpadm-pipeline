@@ -1,5 +1,14 @@
 # AADR / qpAdm Ancestry Analysis Pipeline — Beginner's Guide
 
+> **Which variant do I want?** This `aadr/` pipeline is tuned for **Poland and
+> its neighbours** (Slavic / Baltic / Central-East European ancestry) — its
+> candidate populations are Polish, Slavic, Baltic, Lusatian and steppe sources.
+> For **Western/Central European or US (admixed) genomes**, use the sibling
+> `../aadr_eu/` instead: it adds British/Anglo-Saxon, continental Germanic,
+> Gaulish/French, Italic/Roman and Iberian reference populations. Note that
+> `aadr_eu/` is at an **early stage** (only the prep steps 00–03 and the
+> EU-expanded scans 07–08), whereas `aadr/` is the mature, full pipeline.
+
 This pipeline analyses your personal DNA (from a consumer test kit) against
 thousands of ancient genomes from the AADR database using **qpAdm** — a
 formal statistical method based on f-statistics (allele frequency correlations).
@@ -195,6 +204,28 @@ Rscript aadr/08_two_source.R \
   → no hidden Avar/steppe/Asian admixture
 - Output TSV: `./NN_FF/08_two_source_NN.tsv`
 
+### Step 09 — Przeworsk vs Wielbark channel test *(Polish Iron Age, optional)*
+
+```bash
+Rscript aadr/09_przeworsk_channel.R \
+    ./NN_FF/merged_pw_aadr_final_ready \
+    /usr/local/share/aadr/v66.p1_HO.aadr.patch.PUB NN
+```
+
+- Tests whether your ancestry passed through the **Przeworsk** or the
+  **Wielbark** Iron Age culture channel (relevant for a Greater-Poland /
+  Wielkopolska genealogical background)
+- Combines three probes: 1-source p-value per channel, an **f4 symmetry test**
+  (B1 — are the two channels distinguishable at all? B2 — which channel does
+  your genome favour?), and a 2-source model on a Lusatian base
+- Admits `Poland_IA_Przeworsk` (n=2, skipped by steps 6–7's n≥3 gate)
+- Established result: **UNRESOLVED but consistent** — the two channels are
+  statistically indistinguishable at ~40K SNP (f4 B1 non-significant), both
+  targets show symmetric affinity (f4 B2 non-significant); Przeworsk has the
+  highest single-source p of the Polish IA sources. Needs WGS to resolve.
+- Output TSV: `./NN_FF/przeworsk_channel_results_NN.tsv`,
+  `./NN_FF/przeworsk_channel_f4_NN.tsv`
+
 ---
 
 ## 4. Full command sequence at a glance
@@ -228,6 +259,11 @@ Rscript aadr/07_extended_models.R \
 Rscript aadr/08_two_source.R \
     ./NN_FF/merged_pw_aadr_final_ready \
     /usr/local/share/aadr/v66.p1_HO.aadr.patch.PUB NN
+
+# Step 09 is optional (Polish Iron Age channel test):
+Rscript aadr/09_przeworsk_channel.R \
+    ./NN_FF/merged_pw_aadr_final_ready \
+    /usr/local/share/aadr/v66.p1_HO.aadr.patch.PUB NN
 ```
 
 ---
@@ -239,6 +275,8 @@ Rscript aadr/08_two_source.R \
 | `NN_FF/06_ancestry_models_NN.tsv` | Best Polish-population models, p-values |
 | `NN_FF/07_extended_models_NN.tsv` | Best single-source match across 23 populations; sort by `p` descending |
 | `NN_FF/08_two_source_NN.tsv` | Whether a second hidden ancestry component exists |
+| `NN_FF/przeworsk_channel_results_NN.tsv` | Przeworsk vs Wielbark Iron Age channel (step 09, optional) |
+| `NN_FF/przeworsk_channel_f4_NN.tsv` | f4 symmetry stats for the channel test (step 09) |
 
 **Reading the p-value:** A model is compatible with your data when `p > 0.05`.
 Higher p = better fit (the model cannot be statistically rejected). The best
@@ -271,6 +309,7 @@ See the canonical analysis reports for two existing runs:
 | 04–05 | 5–10 min each | f2 + qpAdm tests |
 | 06–07 | 10–20 min each | f2cache built on first run, reused on re-run |
 | 08 | 20–40 min | 46 two-source models |
+| 09 | 10–20 min | optional; 1-source + f4 symmetry + 2-source channel test |
 
 **~41–50K SNPs after merge is correct and expected.** Consumer arrays cover
 ~520–560K positions; AADR HO has 584K; physical overlap ~57K; after
